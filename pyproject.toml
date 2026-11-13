@@ -1,0 +1,65 @@
+[project]
+name = "argus"
+version = "0.1.0"
+description = "ARGUS — LLM-assisted, evidence-graded swing-trading agent for OKX USDT perpetuals"
+requires-python = ">=3.12,<3.14"
+readme = "README.md"
+dependencies = [
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "pydantic-ai-slim[openai,google,mistral,groq,mcp]>=0.4",
+  # The extras matter: without them `logfire.instrument_httpx()` raises at import time, which
+  # silently disabled ALL telemetry on both machines for a week (F-121).
+  "logfire[httpx,sqlalchemy]>=3.0",
+  "ccxt>=4.4",
+  "httpx>=0.27",
+  "tenacity>=9.0",
+  "pyyaml>=6.0",
+  "pandas>=2.2",
+  "pandas-ta>=0.3.14b0",
+  "numpy>=1.26",
+  "structlog>=24.1",
+  "sqlalchemy>=2.0",
+  "diskcache>=5.6",
+  "python-telegram-bot>=21.0",
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "jinja2>=3.1",
+  "typer>=0.12",
+  "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.24", "ruff>=0.6", "mypy>=1.11", "types-PyYAML", "respx>=0.21", "freezegun>=1.5"]
+
+[project.scripts]
+argus = "argus.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Design docs are prose with illustrative snippets, not source: ruff formats Markdown code
+# blocks, and it started reaching them the moment `docs/` stopped being gitignored.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "W"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["argus/gate", "argus/exchange", "argus/execution", "argus/journal/states.py"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["demo: needs OKX demo credentials and network", "network: needs internet"]
+# demo/network tests are opt-in: `uv run pytest -m demo` overrides this -m filter.
+addopts = "-q -m 'not demo and not network'"
+# pandas-ta sets a pandas option that pandas 3 deprecated; third-party noise, not ours.
+filterwarnings = ["ignore:The 'mode.copy_on_write' option is deprecated:Warning"]

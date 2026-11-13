@@ -1,0 +1,37 @@
+[Unit]
+Description=ARGUS live key keepalive (read-only)
+After=network-online.target
+# A failure (non-zero exit, or killed at TimeoutStartSec) alerts on Telegram instead of
+# living only in journald (J-N12). See argus-failure@.service.
+OnFailure=argus-failure@%n.service
+[Service]
+Type=oneshot
+User=argus
+# Hardening (P-5): only directives that cannot break this service. Not ProtectHome (the venv's
+# Python is uv's, under /home/argus), not MemoryDenyWriteExecute (numba JITs), and no capability
+# keys (the root-owned installer refuses them; a non-root user with NoNewPrivileges has none).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+UMask=0027
+WorkingDirectory=/opt/argus-project
+# No EnvironmentFile (P-N7): argus reads .env itself, from WorkingDirectory, through
+# argus.config.Settings. Exporting it put every key — live OKX triple, LLM keys, Telegram token —
+# into this process's environment and any child's, for a check that needs one key triple.
+#
+# Read-only: permissions, position mode, IP binding (F-037), settlement balance, fee tier, and
+# whether the live account is flat (P-10: it fails while anything is open there before the box
+# is armed on live, so a hand-opened position is caught before ARGUS adopts it). It
+# cannot place, amend or cancel anything — `doctor` has no execution path at all. It runs under
+# the run lock all the same, so its authenticated reads never share OKX's rate limit with a
+# watchdog or manager pass (P-N7); flock waits for one to finish rather than skipping the week.
+ExecStart=/usr/bin/flock -w 300 /var/lib/argus/run.lock /opt/argus-project/.venv/bin/argus doctor --live-keys
+# 300 s queueing for the lock + a few seconds of reads.
+TimeoutStartSec=420
+Nice=10

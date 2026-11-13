@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}ARGUS · run{% endblock %}
+{% block subtitle %}<a href="/">← all runs</a> · <code>{{ run_id[:12] }}</code>{% endblock %}
+{% block body %}
+{% if not run %}
+  <div class="panel"><div class="empty">No such run.</div></div>
+{% else %}
+
+<section class="cards">
+  <div class="card"><div class="k">Started</div><div class="n" style="font-size:17px">{{ run.started_at | ago }}</div>
+    <div class="dim">{{ run.kind }} · {{ run.mode }}</div></div>
+  <div class="card"><div class="k">Status</div><div class="n" style="font-size:17px">{{ run.status }}</div>
+    {# Armed is not live. Since F-123 an armed run can target the demo account, and calling that
+       "live execution" is the exact confusion the header's Viewing / armed-on split exists to
+       prevent. Only an armed run journalled against the live account is real money. #}
+    <div class="dim">{% if run.shadow %}shadow — nothing placed
+      {% elif run.mode in ("approve", "auto") %}
+        {% if run.config_hash == "live" %}live execution — real money
+        {% elif run.config_hash == "demo" %}armed on DEMO — orders go to the demo account
+        {% else %}armed — account not recorded on this run{% endif %}
+      {% else %}{{ run.mode }} — no orders{% endif %}</div></div>
+  <div class="card"><div class="k">Account</div>
+    <div class="n" style="font-size:17px">
+      {% if run.config_hash in ("demo", "live") %}<span class="vt {{ run.config_hash }}">{{ run.config_hash | upper }}</span>
+      {% else %}<span class="dim">not recorded</span>{% endif %}</div>
+    <div class="dim">whatever the header is viewing</div></div>
+  <div class="card"><div class="k">Regime</div>
+    <div class="n" style="font-size:17px">{{ regime.label if regime else "—" }}</div>
+    <div class="dim">risk multiplier applied by code</div></div>
+  <div class="card"><div class="k">Dossiers</div><div class="n">{{ dossiers | length }}</div>
+    <div class="dim">assets researched</div></div>
+</section>
+
+<section>
+  <h2>Decisions</h2>
+  <div class="panel">
+  {% if decisions %}
+  <table>
+    <tr><th>Symbol</th><th>Side</th><th>Verdict</th><th>Why</th></tr>
+    {% for d in decisions %}
+    <tr>
+      <td><strong>{{ d.symbol }}</strong></td>
+      <td class="dim">{{ d.side or "—" }}</td>
+      <td>
+        {% if d.verdict == "APPROVED" %}<span class="tag ok">approved</span>
+        {% elif d.verdict == "REJECTED" %}<span class="tag bad">rejected</span>
+        {% elif d.verdict %}<span class="tag warn">{{ d.verdict | lower }}</span>
+        {% else %}<span class="tag">—</span>{% endif %}
+      </td>
+      <td>
+        {% for r in d.reasons if r.verdict == "REJECT" %}
+          <div><code>gate {{ r.gate }} · {{ r.name }}</code> — {{ r.detail }}</div>
+        {% else %}<span class="dim">—</span>{% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">No plans in this run. Most assets on most days are not trades — that is the
+    system working, not a failure.</div>
+  {% endif %}
+  </div>
+</section>
+
+<section>
+  <h2>Model calls</h2>
+  <div class="panel">
+  {% if calls %}
+  <table>
+    <tr><th>Agent</th><th>Model</th><th>Status</th><th>Calls</th><th>Mean latency</th></tr>
+    {% for c in calls %}
+    <tr><td>{{ c.agent }}</td><td class="mono">{{ c.model }}</td>
+      <td><span class="tag {{ 'ok' if c.status == 'ok' else 'bad' }}">{{ c.status }}</span></td>
+      <td class="mono">{{ c.n }}</td><td class="mono dim">{{ c.ms or 0 }}ms</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No model calls — this run used the deterministic proposer.</div>{% endif %}
+  </div>
+</section>
+
+<section>
+  <h2>Dossiers</h2>
+  <div class="panel">
+  {% if dossiers %}
+  <table>
+    <tr><th>Symbol</th><th>Tokens</th><th>Trade-critical data</th><th>Gaps</th></tr>
+    {% for d in dossiers %}
+    <tr><td><strong>{{ d.symbol }}</strong></td><td class="mono dim">{{ d.tokens }}</td>
+      <td>{% if d.trade_critical %}<span class="tag ok">present</span>
+          {% else %}<span class="tag bad">missing — skipped</span>{% endif %}</td>
+      <td class="dim">{% for g in d.gaps %}<div>{{ g }}</div>{% else %}—{% endfor %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No dossiers.</div>{% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

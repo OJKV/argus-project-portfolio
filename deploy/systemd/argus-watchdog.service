@@ -1,0 +1,33 @@
+[Unit]
+Description=ARGUS no-LLM safety check
+After=network-online.target
+[Service]
+Type=oneshot
+User=argus
+# Hardening (P-5): only directives that cannot break this service. Not ProtectHome (the venv's
+# Python is uv's, under /home/argus), not MemoryDenyWriteExecute (numba JITs), and no capability
+# keys (the root-owned installer refuses them; a non-root user with NoNewPrivileges has none).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+UMask=0027
+WorkingDirectory=/opt/argus-project
+EnvironmentFile=/opt/argus-project/.env
+ExecStart=/opt/argus-project/.venv/bin/argus watchdog --once
+# Ping the URL BARE. healthchecks.io accepts only reserved suffixes (/fail, /start, /log, /<exit>);
+# an arbitrary "/watchdog" is HTTP 400, so this heartbeat was never delivered and a dead watchdog
+# would have alerted nobody (F-126 — the same mistake as F-109, one service over).
+ExecStartPost=/bin/sh -c 'test -n "$HEALTHCHECKS_URL" && curl -fsS -m 10 "$HEALTHCHECKS_URL" >/dev/null || true'
+# A heartbeat that only ever reports success is half a heartbeat: tell healthchecks when the run
+# failed, so the alert arrives on the failure rather than on the silence that follows it.
+ExecStopPost=/bin/sh -c 'test -n "$HEALTHCHECKS_URL" && test "$EXIT_STATUS" != "0" && curl -fsS -m 10 "$HEALTHCHECKS_URL/fail" >/dev/null || true'
+# Its lock wait (WATCHDOG_WAIT_S, 480 s: it outwaits a review sharing the :00 slot) plus the 480 s
+# its own pass always had. Waiting delays the heartbeat ping by as much; it no longer skips a tick.
+TimeoutStartSec=960
+Nice=5

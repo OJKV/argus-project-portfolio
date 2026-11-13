@@ -1,0 +1,56 @@
+[Unit]
+Description=ARGUS auto-deploy (follows an operator-configured deploy/green ref)
+After=network-online.target
+# Exit 1 means a human has something to do: a commit failed staging or its swap rolled back,
+# deploy/green is not a fast-forward, the remote has been unreachable for an hour, uv or flock is
+# missing, or the unit files need the owner. A busy lock, a deferral, a missing deploy/green and
+# "already failed" all exit 0. Once per commit, or once per hour for a persistent fault. See
+# argus-failure@.service and deploy/autodeploy.sh.
+# First hands-off deploy (2026-10-11) changed only this comment, to prove the units step can sudo.
+OnFailure=argus-failure@%n.service
+[Service]
+Type=oneshot
+User=argus
+# Hardening (P-5), cut back because this is the only ARGUS unit that has to sudo: the swap restarts
+# argus-ui.service, and a changed unit file is applied by the root-owned installer.
+#
+# sudo is setuid-root, and systemd.exec(5) (NoNewPrivileges=) says certain settings override the
+# value of NoNewPrivileges= and turn it on: SystemCallFilter, SystemCallArchitectures,
+# RestrictAddressFamilies, RestrictNamespaces, PrivateDevices, ProtectKernelTunables,
+# ProtectKernelModules, ProtectKernelLogs, ProtectClock, MemoryDenyWriteExecute, RestrictRealtime,
+# RestrictSUIDSGID, DynamicUser, LockPersonality. With no_new_privs set the kernel ignores the
+# setuid bit, and every sudo below fails with "effective uid is not 0". So NONE of those keys is
+# set here — NoNewPrivileges itself, ProtectKernelTunables, ProtectKernelModules, RestrictSUIDSGID,
+# RestrictRealtime and LockPersonality are all omitted on purpose — and
+# tests/deploy/test_unit_hardening.py fails if one comes back.
+#
+# ProtectSystem=full is omitted for a different reason: it mounts /etc read-only for the whole
+# process tree, and the installer (a child of sudo) writes /etc/systemd/system.
+#
+# What stays: PrivateTmp, ProtectControlGroups, UMask. And the controls that matter more than these
+# keys: the sudoers rules name exactly two commands (deploy/grant-claude.sh), the installer
+# validates every unit before it installs one, and no secret is in this environment.
+# Not ProtectHome (the venv's Python is uv's, under /home/argus) and not MemoryDenyWriteExecute
+# (numba JITs in the staged suite).
+PrivateTmp=true
+ProtectControlGroups=true
+UMask=0027
+WorkingDirectory=/opt/argus-project
+# NO EnvironmentFile, on purpose. The staged pytest run executes the commit's own code in this
+# environment, and a commit that has not yet shipped must not be able to read the live keys from
+# it. autodeploy.sh needs ARGUS_HOME and nothing else; pytest gets a throwaway one of its own.
+Environment=ARGUS_HOME=/var/lib/argus
+ExecStart=/opt/argus-project/deploy/autodeploy.sh
+# A cold `uv sync` plus ruff, mypy and the suite can take minutes. The script bounds staging to 25
+# minutes itself; 30 minutes here is the backstop, then systemd kills it and the next tick starts
+# clean (the stage restarts from a clean checkout). The swap holds the locks for seconds, so a
+# timeout lands in the staging, which touches nothing in production.
+TimeoutStartSec=1800
+# update.sh rolls back on SIGTERM (this timeout, a stop, a reboot): code reset, `uv sync`, journal
+# restore. The default 90 s before KILL could cut that off half-way; 300 s cannot be mistaken for
+# slow, and a swap that is still not done by then is not going to be.
+TimeoutStopSec=300
+# Normal priority on purpose: the script wraps ONLY the staging in `nice -n 19 ionice -c3`. The
+# swap runs while it holds run.lock and deploy.lock, and every watchdog, manager and review run is
+# queued behind it; it must not be the slow one.
+Nice=0

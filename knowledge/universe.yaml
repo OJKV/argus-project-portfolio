@@ -1,0 +1,45 @@
+# Universe option D (UNIVERSE_OPTIONS.md, decided 2026-09-15; core re-cut for liquidity 2026-09-16).
+# core = always researched; edited only via Scout + human.
+# Liquidity floor for core membership: OKX USDT perp turnover >= $35M (7d median), max lev >= 50x,
+# spread <= 0.03%, crypto-native (no tokenized equities/commodities). Verified by `argus doctor --universe`.
+core:
+  - {symbol: BTC,  okx: BTC-USDT-SWAP,  coingecko: bitcoin,     defillama: {type: chain, slug: bitcoin}}
+  - {symbol: ETH,  okx: ETH-USDT-SWAP,  coingecko: ethereum,    defillama: {type: chain, slug: ethereum}}
+  - {symbol: SOL,  okx: SOL-USDT-SWAP,  coingecko: solana,      defillama: {type: chain, slug: solana}}
+  - {symbol: XRP,  okx: XRP-USDT-SWAP,  coingecko: ripple,      defillama: {type: chain, slug: xrpl}}
+  - {symbol: ZEC,  okx: ZEC-USDT-SWAP,  coingecko: zcash,       defillama: {type: chain, slug: zcash}}
+  - {symbol: DOGE, okx: DOGE-USDT-SWAP, coingecko: dogecoin,    defillama: null}
+  - {symbol: HYPE, okx: HYPE-USDT-SWAP, coingecko: hyperliquid, defillama: {type: chain, slug: hyperliquid-l1}}
+  # unlocks_slug: DefiLlama lists both arbitrum-foundation and arbitrum-exchange; name the one
+  # that holds the token schedule so the fetcher never has to guess (DATA_SOURCES.md §9 #11).
+  - {symbol: ARB,  okx: ARB-USDT-SWAP,  coingecko: arbitrum,    defillama: {type: chain, slug: arbitrum}, unlocks_slug: arbitrum-foundation}
+  - {symbol: UNI,  okx: UNI-USDT-SWAP,  coingecko: uniswap,     defillama: {type: protocol, slug: uniswap}}
+  - {symbol: SUI,  okx: SUI-USDT-SWAP,  coingecko: sui,         defillama: {type: chain, slug: sui}}
+  - {symbol: BNB,  okx: BNB-USDT-SWAP,  coingecko: binancecoin, defillama: {type: chain, slug: bsc}}
+  - {symbol: LINK, okx: LINK-USDT-SWAP, coingecko: chainlink,   defillama: {type: protocol, slug: chainlink}}
+# Dropped 2026-09-16 on measured OKX liquidity (see docs/design_docs_changelog.md):
+#   GRAM (ex-TON) $3.5M/24h rank 138 · AVAX $21.4M rank 48 · NEAR $39.6M rank 37
+# Floors are 7-day medians of closed daily candles (argus doctor --universe).
+# Lowered 2026-09-17 (owner): keep BNB ($49M) and LINK ($43M) in core, AAVE ($29M) on the whitelist.
+# Each floor sits ~20% under the weakest approved name so one soft week doesn't evict it.
+core_liquidity_floor: {min_turnover_24h_usd: 35000000, min_max_leverage: 50, max_spread_pct: 0.03}
+# Whitelist is human-curated, so it gets its own, lower floor; the automatic satellite screen
+# below keeps the stricter $30M bar.
+whitelist_liquidity_floor: {min_turnover_24h_usd: 20000000, min_max_leverage: 10, max_spread_pct: 0.06}
+satellites:
+  max: 3
+  # Mania guard (owner, 2026-09-17): a name that has already made its move is not a candidate.
+  # Add it to the whitelist by hand if you want it researched anyway.
+  mania_guard: {max_abs_ret_24h_pct: 50, max_rel_volume: 20}
+  screen: {min_vol_24h_usd: 30000000, min_age_days: 90, min_max_leverage: 10, max_spread_pct: 0.06}
+# OKX lists tokenized equity/commodity perps (SNDK, XAU, MU, SOXL, SPCX, SKHYNIX, CL …) that pass
+# the volume screen but have no on-chain/tokenomics/DefiLlama data — the dossier would be half empty
+# and the five-factor score meaningless. Satellites and whitelist entries must be crypto-native.
+crypto_native_only: true
+non_crypto_denylist: [XAU, XAG, CL, NG, SNDK, MU, SOXL, SPCX, SKHYNIX, SKHY, TSLA, NVDA, AAPL, MSTR, COIN]
+whitelist_expiry_days: 30
+# 12 core + 3 whitelist + ≤3 satellites. Raised from 15 on 2026-09-17 when the whitelist was
+# filled, so satellites (the rotation-capture mechanism of option D) keep their slots.
+# Cost: analyst calls are batched ⌈n/4⌉ → 5 instead of 4 per Manager run (+2 calls/day).
+# Raised 18 → 21 on 2026-11-02 when PEPE, NEAR and BCH joined the whitelist (12 + 6 + 3).
+max_dossiers_per_run: 21

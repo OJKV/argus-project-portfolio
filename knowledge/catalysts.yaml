@@ -1,0 +1,6 @@
+# Dated catalysts. Every item needs source_url and confirmed_by (human|llm); llm items are `pending` until confirmed in Telegram.
+items:
+  - {date: 2026-09-16, symbol: ARB, kind: unlock, note: "~92.6M ARB, 1.98% circ; July precedent majority investors/team", source_url: "https://tokenomist.ai/arbitrum", confirmed_by: human, status: confirmed}
+  - {date: 2026-09-16, symbol: MACRO, kind: fomc, note: "FOMC decision + dot plot", source_url: "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm", confirmed_by: human, status: confirmed}
+  - {date: 2026-09-29, symbol: ARB, kind: subsidy_expiry, note: "Robinhood Chain gas subsidy expires", source_url: "", confirmed_by: llm, status: pending}
+  - {date: 2026-10-07, symbol: MARKET, kind: conference, note: "TOKEN2049 Singapore 7–8 Oct (official site)", source_url: "https://www.asia.token2049.com/", confirmed_by: human, status: confirmed}

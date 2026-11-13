@@ -1,0 +1,238 @@
+# LLM router tiers. Free-tier model IDs rotate — `argus doctor --models` verifies each entry.
+# family is used for consensus pairing (Trader and Consensus Trader must differ).
+#
+# Catalogue rebuilt from provider model endpoints because
+# every previously configured free ID had rotated away. Removed: GitHub Models (retired), the old
+# gemini-2.5-*, openrouter's dead :free IDs, groq/llama-3.3-70b-versatile, mistral-large (not on
+# this key), zhipu/glm-4.7-flash. Paid fallbacks are ordered by cost: DeepSeek (cents), then
+# OpenAI (dollars) as the last resort — both only after every free provider has failed.
+# 2026-09-19: SambaNova removed. Its "free tier" is a depleting credit grant, not a free
+# plan: every model returned HTTP 402 `balance_units: 0`. Cloudflare serves the same models.
+providers:
+  gemini:     {env: GEMINI_API_KEY,      family: google,     base_url: native, rpm: 15, rpd: 500}
+  # rpm 4, not 30. Measured from Groq's own headers 2026-09-24: every model returns
+  # x-ratelimit-limit-tokens: 8000 with a ~1s reset, i.e. Groq meters TOKENS per minute, not
+  # requests. A structured call here costs ~1300 input + up to 800 output, so ~4 fit in a minute.
+  # Configured at 30, the router fired fifteen and collected 429s (the same mistake as F-094,
+  # where Cloudflare's neurons were modelled as requests).
+  # output_mode: prompted (2026-10-26): Groq 400s on a forced tool call ("Failed to call a
+  # function" on qwen3.8-27b, "Tool choice is required" on gpt-oss-120b), so structured output
+  # goes in the prompt as JSON and is validated against the same schema.
+  groq:       {env: GROQ_API_KEY,        family: groq-open,  base_url: https://api.groq.com/openai/v1, rpm: 4, rpd: 1000, tpm: 8000, output_mode: prompted}
+  # OpenRouter and Zhipu sell free and paid models under one key, so `paid` is judged per model:
+  # only IDs matching `free_models` are free, and any other ID is paid — capped, priced, and kept
+  # out of the free tiers (router.is_paid). nex-n2.5-mini lost its :free variant on 2026-10-06.
+  openrouter: {env: OPENROUTER_API_KEY,  family: openrouter, base_url: https://openrouter.ai/api/v1, rpm: 20, rpd: 1000, free_models: ["*:free"]}
+  # Measured 2026-09-20, twice: the free tier serves the SMALL models. ministral-3b/8b/14b and
+  # open-mistral-nemo answer 200 with 6s spacing; mistral-small, mistral-medium and magistral
+  # return 429 on every call regardless of pacing. Availability is not quality — these still
+  # have to earn their roles on the golden set.
+  mistral:    {env: MISTRAL_API_KEY,     family: mistral,    base_url: https://api.mistral.ai/v1, rpm: 6, rpd: 200}
+  nvidia:     {env: NVIDIA_API_KEY,      family: nvidia,     base_url: https://integrate.api.nvidia.com/v1, rpm: 40, rpd: 2000}
+  # Cloudflare bills in NEURONS, not requests: 10,000/day free. A day of golden-set testing
+  # exhausted it ("you have used up your daily free allocation of 10,000 neurons",
+  # 2026-09-20), which works out near 200-400 chat calls. 200 is the conservative read, and
+  # it is a request-count stand-in for a limit that is really about compute.
+  cloudflare: {env: CLOUDFLARE_API_TOKEN, family: cloudflare, base_url: "https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1", rpm: 30, rpd: 200}
+  # Zhipu publishes no numeric free-tier limit; third-party trackers report ~60 RPM / ~1000
+  # RPD. Measured 2026-09-20: glm-5.3-flash 429s from BOTH machines because it is not free at
+  # all — it is their cheapest *paid* model. The officially free ones are the 4.x Flash pair,
+  # which is what we route to. Limits stay conservative until measured on the box.
+  zhipu:      {env: ZHIPU_API_KEY,       family: zhipu,      base_url: https://api.z.ai/api/paas/v4, rpm: 3, rpd: 100,
+               free_models: [glm-4.7-flash, glm-4.5-flash]}
+  # output_mode: prompted (2026-10-27): DeepSeek 400 "Thinking mode does not support" a forced tool call.
+  deepseek:   {env: DEEPSEEK_API_KEY,    family: deepseek,   base_url: https://api.deepseek.com/v1, rpm: 60, rpd: 100000, paid: true, output_mode: prompted}
+  openai:     {env: OPENAI_API_KEY,      family: openai,     base_url: https://api.openai.com/v1, rpm: 60, rpd: 100000, paid: true}
+tiers:
+  # Gemini flash-lite leads every tier: 500 RPD on the free tier is 2x any other provider (owner).
+  fast:
+    - gemini/gemini-3.5-flash-lite
+    - gemini/gemini-3.1-flash-lite
+    - groq/openai/gpt-oss-20b
+    - "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+    - "cloudflare/@cf/openai/gpt-oss-20b"
+    - "cloudflare/@cf/qwen/qwen3-30b-a3b-fp8"
+    # 14b ahead of 8b on measurement, 2026-09-24: on the Catalyst suite 14b scored 6/6 and 8b
+    # 4/6, both at ~1.2s. Order inside a family decides which model a role actually gets.
+    - mistral/ministral-14b-latest
+    - mistral/ministral-8b-latest
+    - mistral/ministral-3b-latest
+  strong_json:
+    - gemini/gemini-3.5-flash-lite
+    - gemini/gemini-3.5-flash
+    - groq/qwen/qwen3.8-27b
+    - groq/openai/gpt-oss-120b
+    - "openrouter/cohere/north-mini-code:free"
+    - "cloudflare/@cf/qwen/qwen3.8-27b"
+    - "cloudflare/@cf/openai/gpt-oss-120b"
+    - mistral/open-mistral-nemo
+  reasoning:
+    - groq/qwen/qwen3.8-27b
+    - mistral/open-mistral-nemo
+    - "cloudflare/@cf/qwen/qwq-32b"
+    - "cloudflare/@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
+    # Both nemotrons removed 2026-09-24: they failed the output schema on every case of every
+    # suite they were screened against, twice, across two providers. Replaced by the OpenRouter
+    # free models that actually answered when all 18 tool-capable ones were screened — slow
+    # (6-18s), which is irrelevant for the Reflector's one call a week.
+    - "openrouter/cohere/north-mini-code:free"
+    - "openrouter/inclusionai/ling-3.0-flash-sante:free"
+    # nex-n2.5-mini:free removed 2026-10-06: OpenRouter withdrew the free variant (doctor:
+    # model-not-found); only the paid one is listed, which the free-only rule excludes.
+    - zhipu/glm-4.7-flash
+    - zhipu/glm-4.5-flash
+    - gemini/gemini-3.5-flash-lite
+    - gemini/gemini-3.8-flash
+  # Reached only by an agent with `paid_last_resort` (every agent, owner 2026-10-26), after every
+  # free model has failed or hit its cap, and only while the model is priced and its provider is
+  # under its own monthly cap.
+  # owner 2026-10-27: the cheapest model of each provider only — no advanced models in the paid tail.
+  paid_fallback: [deepseek/deepseek-flash, openai/gpt-5-nano]
+# USD per million tokens for PAID models: `"provider/model": {in_per_mtok: x, out_per_mtok: y}`.
+# The router sums this month's `llm_calls` tokens per provider against that provider's cap
+# (`paid_monthly_cap_usd_by_provider`, $5 each) and against the overall `paid_llm_monthly_cap_usd`
+# ($10), and stops offering a provider's paid models at its cap. A paid model with no entry here is NEVER offered — a cap that
+# cannot price a call is not a cap (L-7). Deliberately empty: copy each price from the provider's
+# own pricing page, with the date read, before any paid model can be reached.
+# 2026-10-26: DeepSeek only, read from https://api-docs.deepseek.com/quick_start/pricing on that
+# date (cache-MISS input, the dearer one; we never count on cache hits). DeepSeek charges double at
+# peak (01:00-04:00 and 06:00-10:00 UTC, Mon-Fri) and half off-peak; the PEAK rate is used so the
+# cap is never under-counted. deepseek-flash: $0.30 in / $1.20 out; deepseek-v4-pro: $1.32 in /
+# $3.96 out (off-peak: 0.15/0.60 and 0.66/1.98).
+# OpenAI, read 2026-10-26 from https://developers.openai.com/api/docs/pricing.md (the page
+# platform.openai.com/docs/pricing redirects to), Standard tier, text tokens, short context:
+# gpt-5-mini $0.25 in / $2.00 out; gpt-5-nano $0.05 in / $0.40 out. owner approved OpenAI as the
+# backup after DeepSeek on 2026-10-26, for every agent; each provider has its own $5/month cap.
+prices:
+  deepseek/deepseek-flash: {in_per_mtok: 0.30, out_per_mtok: 1.20}
+  deepseek/deepseek-v4-pro: {in_per_mtok: 1.32, out_per_mtok: 3.96}
+  openai/gpt-5-mini: {in_per_mtok: 0.25, out_per_mtok: 2.00}
+  openai/gpt-5-nano: {in_per_mtok: 0.05, out_per_mtok: 0.40}
+# Not chat models — classifiers used by the input guardrail (OBSERVABILITY_AND_GUARDRAILS §2.2).
+# 14.4k requests/day free on Groq; wired in Phase 4, so `doctor --models` does not ping them.
+guardrails:
+  injection_classifier: groq/meta-llama/llama-prompt-guard-2-86m
+  content_classifier: "cloudflare/@cf/meta/llama-guard-3-8b"
+# Per-model rate limits where the provider publishes them per model rather than per account.
+# `measured` = read off the provider's own console on the stated date; anything absent falls back
+# to the provider's rpm/rpd above. Wrong numbers here are safe in one direction only — too high
+# means we discover the cap by being refused — so unverified entries stay out.
+limits:
+  # Provider model rate limits.
+  "groq/openai/gpt-oss-120b": {rpm: 4, rpd: 1000}      # measured
+  "groq/openai/gpt-oss-20b": {rpm: 4, rpd: 1000}       # measured
+  "groq/qwen/qwen3.8-27b": {rpm: 4, rpd: 1000}         # measured
+  # Google AI Studio free tier, verified 2026-09-19: flash-lite is the 500 RPD model, the larger
+  # flash models are rationed harder.
+  "gemini/gemini-3.5-flash-lite": {rpm: 15, rpd: 500}   # measured
+  "gemini/gemini-3.1-flash-lite": {rpm: 15, rpd: 500}   # measured
+  # Measured from Google's own 429 body on 2026-09-20: "limit: 20, model: gemini-3.5-flash",
+  # quotaId GenerateRequestsPerDayPerProjectPerModel-FreeTier. The docs' 250 is not what this
+  # project gets — 20/day is barely one 15-asset run, so the big flash models are a garnish,
+  # never the backbone. flash-lite's 500 is the real allowance.
+  "gemini/gemini-3.5-flash": {rpm: 10, rpd: 20}    # measured
+  "gemini/gemini-3.8-flash": {rpm: 10, rpd: 20}    # measured
+  # Provider rate limits vary by account; verify them before use. The 429s seen earlier were
+  # per-model upstream congestion on
+  # popular free endpoints, not an account cap — a distinction worth the check, since the wrong
+  # reading would have demoted a whole provider for nothing. Measured 2026-09-19: qwen3.8-27b,
+  # glm-5.2 and gemma-4-31b answer 429 every time (queue depth on the shared free pool) while
+  # nemotron and deepseek-v4-flash answer instantly — so the fix was the model, not the tier.
+  "openrouter/cohere/north-mini-code:free": {rpm: 20, rpd: 1000}      # via /api/v1/key
+  "openrouter/inclusionai/ling-3.0-flash-sante:free": {rpm: 20, rpd: 1000}
+# Agent -> tier + preferred model families (LLM_AGENTS.md §5.1). Two reasons a single model must
+# not play every role: an Analyst and a Red Team from the same family share blind spots, so the
+# Red Team validates the Analyst's mistakes instead of finding them; and ten agents x 15 assets
+# through one provider is a rate limit with extra steps. `families` is a preference — when none
+# is reachable the router falls back to tier order and journals that it had to.
+agents:
+  # `criticality` says what a failure MEANS, which is not the same as how important the agent
+  # is. required = no answer, no signal. safety = the agent's job is to object, so a failure
+  # must drop the trade rather than skip the check — silence from a Red Team is not approval.
+  # optional = the run continues and only the log notices.
+  # Leaders are spread deliberately: google 2, groq 2, cloudflare 3, openrouter 2, mistral 1.
+  # No family leads more than three roles, so one provider's cap is never the run's cap, and
+  # every adversarial pair still starts on different families.
+  # Re-mapped from the 2026-09-21 eval. Cloudflare led three roles and was blocked all night by
+  # a documented platform fault (quota stays exhausted after its 00:00 UTC reset); the two
+  # nemotron models failed the output schema on every screened case. Leaders now come from the
+  # three families that actually answered: google 3, groq 3, mistral 3, plus one optional role.
+  # google from 2026-09-24 (second revision). Groq's fast lead returned nothing at all on 5/5
+  # cases — an 800-token ceiling is spent reasoning before any tool call. Mistral then led at
+  # 4/5, but the miss was the market-wide funding extreme, and ALL THREE ministral sizes miss it
+  # the same way: they read the classifier's bolded label and answer "no contradictory signals
+  # are present" while `funding_median_pctile_90d: 97` sits in their own prompt. gemini-3.5-
+  # flash-lite reads it and scores 5/5 at 1.2s. Regime multiplies size across the whole book, so
+  # a missed funding extreme is the most expensive miss in the set — worth google's fourth role.
+  regime:     {tier: fast,        families: [google, mistral, groq-open], criticality: required, paid_last_resort: true}
+  catalyst:   {tier: fast,        families: [mistral, groq-open, google], criticality: optional, paid_last_resort: true}
+  # groq leads from 2026-09-24: qwen3.8-27b scored 18/20 on the reviewer suite against
+  # gemini-3.5-flash-lite's 17/20, so moving it off google to make room for the Trader is an
+  # improvement rather than a compromise. 16s a case, but the Reviewer runs once per open
+  # position, so a full book is under two minutes.
+  reviewer:   {tier: reasoning,   families: [groq-open, mistral, google], criticality: safety, paid_last_resort: true}
+  # Measured 2026-09-24 on the 6 post-mortem cases: both gemini flash-lite 6/6, ministral-14b
+  # 3/6 — it answers `sound` to everything, including a trade chased 4.3% above its trigger.
+  postmortem: {tier: fast,        families: [google, mistral, groq-open], criticality: optional, paid_last_resort: true}
+  analyst:    {tier: strong_json, families: [google, mistral, groq-open], criticality: required, paid_last_resort: true}
+  # google leads from 2026-09-24, measured three ways. Quality: gemini-3.5-flash-lite 8/10 with
+  # 0 invented at 3.1s, against groq/qwen3.8-27b 6/10 at 19.7s and open-mistral-nemo 8/10 with 2
+  # invented. Throughput: the Trader is the only role called once per asset, and a live 15-asset
+  # run got exactly FOUR answers from groq before `rate_limited` — its 8000 tokens/minute is
+  # about four structured calls (F-113, F-118). The router degraded to gemini and finished
+  # 15/15 in 101s, so nothing broke; the two wasted calls a run are what this removes.
+  # paid_last_resort (owner, 2026-10-26): Gemini returned 503 twice in a day, and a Trader that
+  # finds every free model down loses the manager slot. The same day owner extended it to EVERY
+  # agent (see the flag on each line above and below): after the whole free chain an agent may
+  # try the priced paid_fallback models, DeepSeek first, then OpenAI, each provider under its own
+  # $5/month cap (Settings.paid_monthly_cap_usd_by_provider) and an overall ceiling of $10.
+  trader:     {tier: strong_json, families: [google, groq-open, mistral], criticality: required, paid_last_resort: true}
+  # Measured 2026-09-21: gemini-3.1-flash-lite 5/5 on the risk cases, open-mistral-nemo 2/5.
+  # groq leads from 2026-09-24: qwen3.8-27b also scored 5/5, at 1.2s against gemini's 3.3s, and
+  # google was over the three-role cap. Two calls a run fit inside Groq's 4/min token budget.
+  riskdebate: {tier: strong_json, families: [groq-open, google, mistral], criticality: safety, paid_last_resort: true}
+  # google removed from the list 2026-09-24: the Trader moved there, and `adversarial` excludes
+  # the counterpart's family outright, so naming it here was dead config that read like a
+  # fallback. Measured on the 7 consensus cases: open-mistral-nemo 6/7 at 6.7s, qwen3.8-27b 5/7
+  # at 19.8s — and qwen declined a clean setup, which is the over-blocking failure the suite
+  # exists to catch.
+  consensus:  {tier: strong_json, families: [mistral, groq-open, cloudflare], criticality: safety, paid_last_resort: true}
+  redteam:    {tier: reasoning,   families: [groq-open, mistral, google], criticality: safety, paid_last_resort: true}
+  reflector:  {tier: reasoning,   families: [openrouter, mistral, google], criticality: optional, paid_last_resort: true}
+# Roles that judge another role's output. Sharing a family with the counterpart turns a second
+# opinion into an echo, so the router excludes it outright rather than merely deprioritising it.
+adversarial:
+  # The red team attacks the Trader's plan in the live chain (2026-10-06); the Analyst it was
+  # first paired with is not in the live path.
+  redteam: trader
+  consensus: trader
+  reviewer: trader
+# max_attempts caps how many models one call may burn: measured 2026-09-20, an unbounded
+# chain of 8 candidates x 45s across 15 assets took 7m29s of an 8-minute run budget.
+# max_tokens must be set explicitly — a reasoning model spends a provider's default budget
+# on thinking and returns nothing.
+# Temperature is per agent on purpose. A Reviewer deciding whether to close a live position
+# should give the same answer twice for the same facts, so it sits near zero. A Red Team
+# whose job is to find objections nobody thought of needs variety, or it produces the same
+# three complaints forever. `top_p` stays at the provider default: constraining both it and
+# temperature compounds in ways that are hard to reason about, and the output schema already
+# does the work that nucleus sampling would.
+# repair_attempts: re-asks on the SAME model after a schema failure, each one a request of its
+# own on the quota window (L-6). The headroom reserve (stop offering a provider with < 10% of
+# either quota left) is `RESERVE` in router.py; the old `skip_provider_at_rpd_fraction: 0.9`
+# key said the same thing here, was never read, and was removed (L-11).
+policy: {timeout_s: 45, repair_attempts: 1,
+  max_attempts: 4, max_tokens: 2000,
+  # Per-agent output ceilings. The Trader's thinking models ran out of 2000 tokens before they
+  # answered (cohere at 2000, gemini-3.5-flash at 1920; Logfire 2026-10-26). trader_batch is the
+  # same agent key. Everything else keeps `max_tokens`.
+  max_tokens_by_agent: {trader: 4000},
+  # Per-provider output ceilings. Groq's free tier enforces 1000 output tokens per MINUTE and
+  # rejects a request whose max_tokens alone exceeds it — measured 2026-09-20:
+  # "Limit 1000, Requested 1291".
+  max_tokens_by_provider: {groq: 800},
+  # A FLOOR, never lowers a cap: OpenAI's gpt-5 reasoning models spent the whole 2000-token budget
+  # thinking and answered nothing on the consensus fallback (2026-10-27).
+  min_tokens_by_provider: {openai: 8000}, temperature: {trader: 0.1, consensus: 0.1, reviewer: 0.05, regime: 0.1, analyst: 0.2,
+    riskdebate: 0.4, redteam: 0.5, reflector: 0.5, postmortem: 0.3, catalyst: 0.1,
+    default: 0.3}}

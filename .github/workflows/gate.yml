@@ -1,0 +1,61 @@
+# Offline verification for the public portfolio copy.
+# Offline only: no secrets, no exchange, no LLM. `-m demo` tests need OKX keys and stay local.
+name: gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Pinned checkout action.
+      # setup-uv below is still a tag; pin it the same way when it is next bumped.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          # The uv a fresh box installs (deploy/install.sh UV_VERSION); a test keeps them equal.
+          version: "0.12.5"
+          enable-cache: true
+
+      # --all-extras, exactly as install.sh and update.sh do. ruff, mypy and pytest live in the
+      # `dev` extra, so a plain `uv sync` installs none of them and the first step dies with
+      # "Failed to spawn: ruff" before a single test runs (F-142).
+      - name: Sync the locked environment
+        run: uv sync --locked --all-extras
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+      - name: mypy --strict on the money paths
+        run: uv run mypy argus/gate argus/exchange argus/execution argus/journal/states.py
+
+      - name: pytest (offline)
+        run: uv run pytest -q
+
+      # The deploy scripts are the one piece of code no test imports, and a syntax error in
+      # update.sh breaks the machine that would otherwise fix it. Every script is listed —
+      # install-units.sh, trade.sh and grant-claude.sh touch root or orders, and were missing
+      # (P-N8); tests/deploy/test_ci_gate.py fails if a new script is not added here.
+      - name: shell syntax
+        run: for f in deploy/update.sh deploy/autodeploy.sh deploy/checks.sh deploy/install.sh deploy/backup.sh deploy/install-units.sh deploy/trade.sh deploy/grant-claude.sh deploy/dashboard.sh; do bash -n "$f" || exit 1; done
+
+      # The same validation the root-owned installer applies on the box (P-N1): a unit that could
+      # run as root fails here, before it is ever deployed.
+      - name: systemd units
+        run: bash deploy/install-units.sh --check

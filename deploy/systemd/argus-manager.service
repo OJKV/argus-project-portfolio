@@ -1,0 +1,33 @@
+[Unit]
+Description=ARGUS Portfolio Manager run
+After=network-online.target
+# A failure (non-zero exit, or killed at TimeoutStartSec) alerts on Telegram instead of
+# living only in journald (J-N12). See argus-failure@.service.
+OnFailure=argus-failure@%n.service
+[Service]
+Type=oneshot
+User=argus
+# Hardening (P-5): only directives that cannot break this service. Not ProtectHome (the venv's
+# Python is uv's, under /home/argus), not MemoryDenyWriteExecute (numba JITs), and no capability
+# keys (the root-owned installer refuses them; a non-root user with NoNewPrivileges has none).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+UMask=0027
+WorkingDirectory=/opt/argus-project
+EnvironmentFile=/opt/argus-project/.env
+ExecStart=/opt/argus-project/.venv/bin/argus manager --llm --scheduled
+# No healthcheck ping. HEALTHCHECKS_URL is the WATCHDOG's heartbeat, and pinging it from here
+# would report the watchdog alive when it might not be. The old line also appended an arbitrary
+# path, which healthchecks.io answers with HTTP 400 (F-126). Give this job its own check URL if
+# it ever needs one.
+# 900 = up to 300 s queueing for the run lock behind a watchdog tick (P-N6) + the 480 s run
+# budget + slack. systemd counts the wait, and a SIGTERM mid-placement is worse than a lost slot.
+TimeoutStartSec=900
+Nice=5

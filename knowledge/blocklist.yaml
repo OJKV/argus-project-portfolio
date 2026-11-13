@@ -1,0 +1,11 @@
+# Symbols the screen must never propose, and the standing exclusion rules.
+# Edited by a human (or the Scout agent with human confirmation) — never by a run.
+rules:
+  - {rule: memecoin_fdv_below_usd, value: 300000000}
+  - {rule: min_okx_perp_history_days, value: 90}
+  - {rule: exclude_kinds, value: [stablecoin, wrapped, leveraged_token]}
+# Tier C from the 2026-09-16 candidate review (docs/UNIVERSE_OPTIONS.md), blocked by owner 2026-09-17:
+#   USELESS — +501%/30d mania, 311% annualised vol; the "arrive after the move" case
+#   TRUMP   — insider concentration, unlock overhang, pure headline risk
+#   PUMP    — pump.fun token; real revenue, poor reputation
+symbols: [USELESS, TRUMP, PUMP]

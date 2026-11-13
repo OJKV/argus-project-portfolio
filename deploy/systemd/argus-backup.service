@@ -1,0 +1,28 @@
+[Unit]
+Description=ARGUS journal backup
+# A backup that fails its integrity check exits 1 and alerts (P-6); see argus-failure@.service.
+OnFailure=argus-failure@%n.service
+[Service]
+Type=oneshot
+User=argus
+# Hardening (P-5): only directives that cannot break this service. Not ProtectHome (the venv's
+# Python is uv's, under /home/argus), not MemoryDenyWriteExecute (numba JITs), and no capability
+# keys (the root-owned installer refuses them; a non-root user with NoNewPrivileges has none).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+UMask=0027
+# backup.sh needs ARGUS_HOME and nothing else; the secrets in .env stay out of
+# this shell's environment (P-5).
+Environment=ARGUS_HOME=/var/lib/argus
+# Holds deploy.lock SHARED while it runs (flock -s). This job takes no run lock, so nothing else
+# keeps a deploy from swapping the code and the .venv under it; deploy/update.sh takes deploy.lock
+# EXCLUSIVELY, so it waits for this job, and this job waits (up to 600 s, which TimeoutStartSec
+# covers) for a swap. Same form as argus-live-keys.service uses for run.lock.
+ExecStart=/usr/bin/flock -s -w 600 /var/lib/argus/deploy.lock /opt/argus-project/deploy/backup.sh

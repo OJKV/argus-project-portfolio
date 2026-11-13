@@ -1,0 +1,63 @@
+# Secrets & state — never commit (AGENTS.md rule 2)
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+# Leading slash = project root only. A bare `journal/` also matched the source package
+# `argus/journal/` and silently excluded it from git (seen in the nautilus project too).
+/journal/
+/var/
+/HALT
+
+# Private notes and local tooling
+/.remember/
+/.claude/
+
+# Docs: ignored by default, then the design set is un-ignored on purpose so cloud
+# agents (and a future maintainer) can read it. A NEW doc stays private until listed here.
+/docs/*
+# Local agent review notes — never commit.
+/docs/muse/
+!/docs/README.md
+!/docs/ARCHITECTURE.md
+!/docs/DECISION_LOGIC.md
+!/docs/DATA_SOURCES.md
+!/docs/LLM_AGENTS.md
+!/docs/LLM_PROVIDERS_AND_MODELS.md
+!/docs/MEMORY_AND_STATE.md
+!/docs/NAMING.md
+!/docs/OBSERVABILITY_AND_GUARDRAILS.md
+!/docs/UNIVERSE_OPTIONS.md
+!/docs/STRATEGY_STACKS.md
+!/docs/UI_DESIGN.md
+!/docs/SAFETY.md
+!/docs/STATUS.md
+!/docs/FAILURE_LOG.md
+!/docs/ROADMAP.md
+!/docs/BUILD_PLAN.md
+!/docs/OPEN_QUESTIONS.md
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Caches
+.cache/
+.diskcache/
+
+
+# stuff
+.DS_Store
+
+# local test-gate control files
+.test-gate.json
+.test-gate-ok

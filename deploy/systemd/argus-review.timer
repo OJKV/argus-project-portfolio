@@ -1,0 +1,20 @@
+[Unit]
+Description=ARGUS review timer
+[Timer]
+# On the hour, every six hours, so each review is finished well before the manager run at :30
+# (00:30, 12:30). It used to start at :15; with a review that waits up to five minutes for the
+# run lock, :15 could still be running when the manager started (owner, 2026-10-07). The 4H/1D
+# candles close on the hour, so the review still judges against a freshly closed candle.
+#
+# It shares :00 with a watchdog tick. Whichever takes the run lock first, the other waits: the
+# review up to five minutes, the watchdog a whole run budget (WATCHDOG_WAIT_S), so neither loses
+# its slot. owner's schedule keeps the review at :00, thirty minutes clear of the manager.
+#
+# Known, and not fixed by the schedule (G-N1): an entry placed by the 00:30 manager is 11.5 h old
+# at the 12:00 review, inside entry_valid_hours=12, so it is still resting when the 12:30 manager
+# runs — and the gate does not count resting entries against the book.
+OnCalendar=*-*-* 00,06,12,18:00:00 UTC
+Persistent=true
+RandomizedDelaySec=30
+[Install]
+WantedBy=timers.target

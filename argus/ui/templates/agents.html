@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}ARGUS · agents{% endblock %}
+{% block subtitle %}ten roles, each measured before it was trusted{% endblock %}
+{% block body %}
+
+<p class="dim" style="font-size:12.5px;margin-top:0">
+  Ten LLM roles run behind the Risk Gate. None of them can set a size, a leverage or a stop —
+  those live in code. What they can do is propose, object, and disagree with each other, and every
+  leader below was chosen by scoring it against a golden set rather than by reputation.
+  The roster, the golden-set scores and the lessons are shared by both accounts — the
+  Demo | Live switch does not filter this page.
+</p>
+
+<section>
+  <h2>Agent roster</h2>
+  <div class="panel"><table>
+    <tr><th>Agent</th><th>Tier</th><th>Leader</th><th>Fallback families</th><th>Judges</th><th>On failure</th></tr>
+    {% for a in agents %}
+    <tr>
+      <td><strong>{{ a.agent }}</strong></td>
+      <td class="dim">{{ a.tier }}</td>
+      <td class="mono">{{ a.leader }}</td>
+      <td class="dim mono">{{ a.families }}</td>
+      <td class="dim">{{ a.judges or "—" }}</td>
+      <td>
+        {% if a.criticality == "safety" %}<span class="tag bad">drops the trade</span>
+        {% elif a.criticality == "required" %}<span class="tag warn">no signal</span>
+        {% else %}<span class="tag">run continues</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="dim" style="font-size:12px">
+    Criticality says what a failure <em>means</em>. Silence from an agent whose job is to object is
+    not approval, so a <span class="bad">safety</span> failure drops the trade rather than skipping
+    the check. No adversarial pair shares a provider family — agreement between siblings is not
+    evidence.
+  </p>
+</section>
+
+
+
+<section>
+  <h2>Model quality — golden sets</h2>
+  <div class="panel">
+  {% if scores %}
+  <table>
+    <tr><th>Model</th><th>Tier</th><th>Score</th><th>Invented</th><th>Schema</th><th>Errors</th><th>p50</th><th>Usable</th></tr>
+    {% for s in scores %}
+    <tr>
+      <td class="mono">{{ s.model }}</td><td class="dim">{{ s.tier }}</td>
+      <td class="mono">{{ s.correct }}/{{ s.cases }}</td>
+      <td class="mono {{ 'bad' if s.invented else 'dim' }}">{{ s.invented }}</td>
+      <td class="mono dim">{{ s.schema_fail }}</td><td class="mono dim">{{ s.errors }}</td>
+      <td class="mono dim">{{ s.p50_ms }}ms</td>
+      <td>{% if s.usable %}<span class="tag ok">yes</span>{% else %}<span class="tag bad">no</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No evaluations recorded yet — the eval timer writes these daily.</div>{% endif %}
+  </div>
+  <p class="dim" style="font-size:12px">
+    A model earns its place by answering in the right shape without citing evidence it was never
+    shown. Accuracy alone is a poor filter: a model that refuses everything scores well on a set
+    where most correct answers are "no trade".
+  </p>
+</section>
+
+<section>
+  <h2>Lessons memory</h2>
+  <div class="panel">
+  {% if lessons %}
+  <table>
+    <tr><th>Scope</th><th>Lesson</th><th>Supporting</th><th>Against</th></tr>
+    {% for l in lessons %}
+    <tr><td><span class="tag">{{ l.scope }}</span></td><td>{{ l.lesson }}</td>
+        <td class="mono">{{ l.support }}</td><td class="mono dim">{{ l.contradiction }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">Nothing has cleared the evidence bar yet — a lesson needs three supporting
+    trades and three times as many supporters as contradictions.</div>
+  {% endif %}
+  </div>
+</section>
+{% endblock %}

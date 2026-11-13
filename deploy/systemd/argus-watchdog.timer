@@ -1,0 +1,11 @@
+[Unit]
+Description=ARGUS watchdog timer
+[Timer]
+OnCalendar=*:0/20
+# A reboot (kernel patch, Hetzner maintenance) must not leave open positions unchecked until the
+# next :00/:20/:40. Two minutes lets the network and tailscaled come up first (P-11).
+OnBootSec=2min
+Persistent=true
+RandomizedDelaySec=30
+[Install]
+WantedBy=timers.target

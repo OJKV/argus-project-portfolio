@@ -1,0 +1,49 @@
+# Manual additions: researched every run while listed; expire 30 days after `renewed`
+# (universe.yaml: whitelist_expiry_days). Renew by bumping `renewed` — never silently.
+# Floor for whitelist membership: universe.yaml `whitelist_liquidity_floor` (≥$20M, 7-day median).
+# Other vetted candidates for later expansion: docs/UNIVERSE_OPTIONS.md §"Whitelist candidates".
+entries:
+  - symbol: FIL
+    okx: FIL-USDT-SWAP
+    coingecko: filecoin
+    defillama: {type: chain, slug: filecoin}
+    added: 2026-09-17
+    renewed: 2026-10-25
+    reason: "Liquid ($76-115M/24h), 7y history, trends in long clean legs; full CoinGecko + DefiLlama coverage"
+  - symbol: ENA
+    okx: ENA-USDT-SWAP
+    coingecko: ethena
+    defillama: {type: protocol, slug: ethena}
+    added: 2026-09-17
+    renewed: 2026-10-25
+    reason: "Highest credible volatility (183% ann.), tightest spread in class; USDe yield is tied to perp funding, so derivatives data is fundamental input"
+  - symbol: AAVE
+    okx: AAVE-USDT-SWAP
+    coingecko: aave
+    defillama: {type: protocol, slug: aave}
+    added: 2026-09-17
+    renewed: 2026-11-02
+    reason: "Blue-chip DeFi with real fees and revenue on DefiLlama — the best factor-1 evidence of any candidate; liquidity ($38-45M) is its weak point"
+  # Added 2026-11-02 (owner: "add other coins at your discretion"). Measured on OKX that day from the
+  # VPS: 7-day median turnover, spread, max leverage; all three are listed on the demo venue.
+  - symbol: PEPE
+    okx: PEPE-USDT-SWAP
+    coingecko: pepe
+    defillama: null
+    added: 2026-11-02
+    renewed: 2026-11-02
+    reason: "Tier A candidate (UNIVERSE_OPTIONS.md): $294M/7d median, spread 0.002%; reference memecoin, a read on retail risk appetite — no product, so factor 1 stays thin"
+  - symbol: NEAR
+    okx: NEAR-USDT-SWAP
+    coingecko: near
+    defillama: {type: chain, slug: near}
+    added: 2026-11-02
+    renewed: 2026-11-02
+    reason: "Dropped from core 2026-09-16 at $40M; now $136M/7d median, spread 0.024%; real L1 with DefiLlama chain data ($195M TVL)"
+  - symbol: BCH
+    okx: BCH-USDT-SWAP
+    coingecko: bitcoin-cash
+    defillama: null
+    added: 2026-11-02
+    renewed: 2026-11-02
+    reason: "Tier B candidate: $61M/7d median, spread 0.004%; old, volatile, liquid. DeFi TVL is ~$5M, so no DefiLlama slug"

@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}ARGUS · PnL{% endblock %}
+{% block subtitle %}what the system actually made, in $ and %{% endblock %}
+{% block body %}
+{% set vtag %}<span class="vt {{ viewing }}">{{ viewing | upper }}</span>{% endset %}
+{# A dash, never 0: an unknown figure and a zero look identical in a green/red number. #}
+{% macro usd(x) -%}
+  {%- if x is none %}—{% else %}<span class="{{ 'ok' if x > 0 else ('bad' if x < 0 else '') }}" style="border:0">{{ "%+.2f" | format(x) | replace("+", "+$") | replace("-", "−$") }}</span>{% endif -%}
+{%- endmacro %}
+{% macro pct(x) -%}
+  {%- if x is none %}—{% else %}<span class="{{ 'ok' if x > 0 else ('bad' if x < 0 else '') }}" style="border:0">{{ "%+.2f" | format(x) }}%</span>{% endif -%}
+{%- endmacro %}
+{% macro num(x, places=2) -%}
+  {%- if x is none %}—{% else %}{{ ("%." ~ places ~ "f") | format(x) }}{% endif -%}
+{%- endmacro %}
+{% macro rate(x) -%}
+  {%- if x is none %}—{% else %}{{ "%.0f" | format(x * 100) }}%{% endif -%}
+{%- endmacro %}
+{% set s = pnl.summary %}
+{% set names = {"all": "All trades", "ai": "AI-opened", "manual": "Manual", "unknown": "Origin unknown"} %}
+
+<section>
+  <h2>Realised PnL {{ vtag }}</h2>
+  <p class="dim" style="font-size:12px;margin:-4px 0 10px">
+    Net of fees and funding: the figure the venue booked when each trade closed, by close time (UTC).
+    Percent is of
+    {% if pnl.basis_usd %}<strong>${{ "%.2f" | format(pnl.basis_usd) }}</strong>, the latest equity
+      reading ({{ pnl.basis_as_of | ago }}) — the same equity ARGUS sizes each trade from, not a
+      starting balance{% else %}an equity reading, and there is none yet{% endif %}.
+  </p>
+  <div class="cards">
+    {% for w in pnl.windows["all"] %}
+    <div class="card"><div class="k">{{ {"today": "Today", "7d": "7 days", "30d": "30 days", "all": "All time"}[w.period] }}</div>
+      <div class="n">{{ usd(w.net_pnl_usd) if w.priced else "—" }}</div>
+      <div>{{ pct(w.net_pnl_pct) }}</div>
+      <div class="dim">{{ w.closed }} closed · {{ w.wins }} won ({{ rate(w.win_rate) }})
+        {% if w.fees_usd is not none %}· fees ${{ "%.2f" | format(w.fees_usd) }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% if s.unpriced %}
+  <p class="dim" style="font-size:12px">
+    {{ s.unpriced }} closed trade{{ "s" if s.unpriced != 1 else "" }} carry no booked PnL (the venue
+    could not say when the close was noticed). They are counted as closed but are in no dollar
+    figure, win rate or profit factor here — not guessed, and not counted as zero.
+  </p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Performance {{ vtag }}</h2>
+  <div class="cards">
+    <div class="card"><div class="k">Closed trades</div><div class="n">{{ s.closed }}</div>
+      <div class="dim">{{ s.wins }} won · {{ s.losses }} lost</div></div>
+    <div class="card"><div class="k">Win rate</div><div class="n">{{ rate(s.win_rate) }}</div></div>
+    <div class="card"><div class="k">Average R</div><div class="n">{{ num(s.avg_r) }}</div>
+      <div class="dim">PnL ÷ the risk the gate approved</div></div>
+    <div class="card"><div class="k">Profit factor</div><div class="n">{{ num(s.profit_factor) }}</div>
+      {% if s.profit_factor is none %}<div class="dim">needs a win and a loss</div>{% endif %}</div>
+    <div class="card"><div class="k">Max drawdown</div>
+      <div class="n">{% if s.max_drawdown_pct is none %}—{% else %}{{ s.max_drawdown_pct }}%{% endif %}</div>
+      <div class="dim">peak to trough, all equity readings</div></div>
+    <div class="card"><div class="k">Sharpe (daily, annualised, rf=0)</div>
+      <div class="n">{{ num(s.sharpe) }}</div>
+      <div class="dim">
+        {% if s.sharpe is none %}not meaningful yet — {{ s.sharpe_days }} daily
+          point{{ "s" if s.sharpe_days != 1 else "" }}, needs {{ min_days }}
+        {% else %}{{ s.sharpe_days }} daily points, ×√365{% endif %}</div></div>
+    <div class="card"><div class="k">Unrealised</div>
+      <div class="n">{{ usd(s.unrealised_usd) }}</div>
+      <div class="dim">{% if not s.open_positions %}no open positions
+        {% elif s.unrealised_usd is none %}a position's figure is unreadable
+        {% else %}{{ s.open_positions }} open, seen {{ s.unrealised_as_of | ago }}{% endif %}</div></div>
+    <div class="card"><div class="k">Fees paid</div>
+      <div class="n">{% if s.fees_usd is none %}—{% else %}${{ "%.2f" | format(s.fees_usd) }}{% endif %}</div>
+      <div class="dim">{% if s.fees_usd is none %}not journalled — see note below{% else %}from journalled fills{% endif %}</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>AI vs manual {{ vtag }}</h2>
+  <div class="panel">
+  <table>
+    <tr><th>Opened by</th><th>Today</th><th>7 days</th><th>30 days</th><th>All time</th></tr>
+    {% for origin in ["ai", "manual", "unknown"] %}
+    {% set ws = pnl.windows[origin] %}
+    {% if origin != "unknown" or ws[3].closed %}
+    <tr><td>{{ names[origin] }}</td>
+      {% for w in ws %}
+      <td class="mono">{{ usd(w.net_pnl_usd) if w.priced else "—" }} · {{ pct(w.net_pnl_pct) }}
+        <span class="dim">({{ w.closed }})</span></td>
+      {% endfor %}
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+  </div>
+  <p class="dim" style="font-size:12px">
+    AI = the plan came from a manager run; manual = from <code>argus manual-trade</code>. Origin
+    unknown = a close with no plan behind it, so nothing journalled says who opened it.
+  </p>
+</section>
+
+<section>
+  <h2>Curves {{ vtag }}</h2>
+  <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+    {% for c in [pnl.equity_curve, pnl.pnl_curve] %}
+    <div class="card">
+      {% if c %}
+      <div class="k">{{ c.label }} · {{ c.n }} points</div>
+      <svg viewBox="0 0 640 140" width="100%" role="img" aria-label="{{ c.label }}"
+           preserveAspectRatio="none" style="display:block;margin-top:6px">
+        <polyline fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"
+                  points="{{ c.points }}"/>
+      </svg>
+      <div class="dim mono">${{ "%.2f" | format(c.first) }} → ${{ "%.2f" | format(c.last) }}
+        · low ${{ "%.2f" | format(c.low) }} · high ${{ "%.2f" | format(c.high) }}</div>
+      {% else %}
+      <div class="k">{{ "Equity" if loop.first else "Cumulative realised PnL" }}</div>
+      <div class="dim">needs two points</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Closed trades {{ vtag }}</h2>
+  <div class="panel">
+  {% if pnl.trades %}
+  <table>
+    <tr><th>Entry placed</th><th>Closed</th><th>Symbol</th><th>Side</th><th>Opened by</th><th>Size</th>
+        <th>Entry</th><th>Last mark</th><th>PnL $</th><th>PnL %</th><th>R</th><th>Fees</th></tr>
+    {% for t in pnl.trades %}
+    <tr>
+      <td class="mono dim">{{ t.opened_at[:16] | replace("T", " ") if t.opened_at else "—" }}</td>
+      <td class="mono dim">{{ t.closed_at[:16] | replace("T", " ") }}</td>
+      <td>{{ t.symbol }}</td>
+      <td>{{ t.side }}</td>
+      <td><span class="tag">{{ t.origin }}</span></td>
+      <td class="mono">{{ t.size if t.size is not none else "—" }}</td>
+      <td class="mono">{{ t.entry if t.entry is not none else "—" }}</td>
+      <td class="mono">{{ t.last_mark if t.last_mark is not none else "—" }}</td>
+      <td class="mono">{{ usd(t.pnl_usd) }}</td>
+      <td class="mono">{{ pct(t.pnl_pct) }}{% if t.pct_basis %}<div class="dim">of {{ t.pct_basis }}</div>{% endif %}</td>
+      <td class="mono">{{ num(t.r_multiple) }}</td>
+      <td class="mono">{% if t.fees_usd is none %}—{% else %}${{ "%.2f" | format(t.fees_usd) }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">No closed trades on the {{ viewing }} account yet.</div>
+  {% endif %}
+  </div>
+  <p class="dim" style="font-size:12px">
+    {% if pnl.trades_total > pnl.trades | length %}Newest {{ pnl.trades | length }} of {{ pnl.trades_total }}. {% endif %}
+    "Last mark" is the final mark price the watchdog saw before the position was gone — up to a
+    tick before the real exit; the exit price itself is not journalled. Entry placed is when the
+    entry order was journalled. Fees are summed from journalled fills and show a dash where there
+    are none (the journal's fills table is not written yet); funding is not recorded apart from
+    the venue's booked PnL. That PnL is already net of both, so the dollars are right either way.
+  </p>
+</section>
+
+{% if unattributed.values() | sum %}
+<p class="dim" style="font-size:12px">
+  Rows from runs that did not record their account are in neither view and are not counted here
+  (see the Trading page).
+</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ARGUS{% endblock %}</title>
+<style>
+  :root {
+    --bg:#0e1116; --panel:#161b22; --line:#272e38; --ink:#e6edf3; --dim:#8b949e;
+    --ok:#3fb950; --warn:#d29922; --bad:#f85149; --accent:#58a6ff; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif }
+  a { color:var(--accent); text-decoration:none } a:hover { text-decoration:underline }
+  header { border-bottom:1px solid var(--line); padding:12px 20px; display:flex; flex-wrap:wrap;
+           align-items:center; gap:10px 14px; position:sticky; top:0; background:var(--bg); z-index:2 }
+  header h1 { margin:0; font-size:17px; letter-spacing:.14em; font-weight:600 }
+  header .sub { color:var(--dim); font-size:12px; margin-left:auto }
+  header nav { display:flex; gap:14px }
+  header nav a { color:var(--dim); font-size:13px; padding:2px 0; border-bottom:2px solid transparent }
+  header nav a.on { color:var(--ink); border-bottom-color:var(--accent) }
+  /* The account switch: which account's rows are SHOWN. Live is red when chosen, so a glance at
+     the header answers "am I looking at real money?" without reading the band. */
+  .venue-switch { display:inline-flex; border:1px solid var(--line); border-radius:6px;
+                  overflow:hidden; font-size:12px; font-weight:600; letter-spacing:.06em }
+  .venue-switch a { padding:4px 12px; color:var(--dim); text-transform:uppercase }
+  .venue-switch a + a { border-left:1px solid var(--line) }
+  .venue-switch a:hover { text-decoration:none; color:var(--ink); background:#1c222b }
+  .venue-switch a.on { color:var(--ink); background:#1f2a38 }
+  .venue-switch a.on.live { color:#fff; background:#8e1f24 }
+  .vt { display:inline-block; padding:0 6px; border-radius:4px; border:1px solid var(--line);
+        font-family:var(--mono); font-size:11.5px; letter-spacing:.04em }
+  .vt.demo { color:var(--accent); border-color:#1d3a5c }
+  .vt.live { color:var(--bad); border-color:#4a2225 }
+  h2 .vt { margin-left:6px; font-size:10.5px; vertical-align:1px }
+  .band { padding:8px 20px; font-size:12.5px; border-bottom:1px solid var(--line);
+          background:#12171f; color:var(--dim) }
+  .band strong { color:var(--ink) }
+  .band.bad { background:#2a1214; border-bottom-color:#4a2225 }
+  .band.bad strong { color:var(--bad) }
+  main { padding:20px; max-width:1180px; margin:0 auto }
+  section { margin-bottom:26px }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim);
+       margin:0 0 10px; font-weight:600 }
+  /* overflow-x, not hidden: on a phone a nine-column table has to scroll, not lose columns. */
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow-x:auto }
+  table { width:100%; border-collapse:collapse; font-size:13px }
+  th { text-align:left; font-weight:600; color:var(--dim); font-size:11px;
+       text-transform:uppercase; letter-spacing:.06em; padding:9px 12px; border-bottom:1px solid var(--line) }
+  td { padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top }
+  tr:last-child td { border-bottom:none }
+  tr:hover td { background:#1c222b }
+  .mono { font-family:var(--mono); font-size:12px }
+  .dim { color:var(--dim) }
+  .tag { display:inline-block; padding:1px 7px; border-radius:99px; font-size:11px;
+         border:1px solid var(--line); white-space:nowrap }
+  .ok { color:var(--ok); border-color:#1f3d26 } .bad { color:var(--bad); border-color:#4a2225 }
+  .warn { color:var(--warn); border-color:#413213 }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:13px 15px }
+  .card .n { font-size:23px; font-weight:600; font-family:var(--mono) }
+  .card .k { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.07em }
+  .empty { padding:22px; color:var(--dim); text-align:center }
+  code { font-family:var(--mono); font-size:12px; color:var(--dim) }
+  @media (max-width:700px){
+    main{padding:12px} td,th{padding:7px 8px} header{padding:10px 12px} .band{padding:8px 12px}
+    header .sub{margin-left:0; flex-basis:100%; order:3}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="/" style="color:inherit">ARGUS</a></h1>
+  <nav>
+    <a href="/" class="{{ 'on' if nav == 'trading' else '' }}">Trading</a>
+    <a href="/pnl" class="{{ 'on' if nav == 'pnl' else '' }}">PnL</a>
+    <a href="/agents" class="{{ 'on' if nav == 'agents' else '' }}">Agents</a>
+  </nav>
+  {% if viewing is defined %}
+  {# Links, not a form: choosing what to look at must not be able to change anything. #}
+  <nav class="venue-switch" aria-label="Account shown">
+    {% for v in ("demo", "live") %}
+    <a href="{{ switch_path }}?venue={{ v }}" class="{{ v }} {{ 'on' if viewing == v else '' }}"
+       {% if viewing == v %}aria-current="true"{% endif %}>{{ v }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+  <span class="sub">{% block subtitle %}read-only{% endblock %}</span>
+</header>
+{% if venue is defined and venue %}
+{# Three facts, never merged: what the last real run did, what this page's config says, and
+   whether they agree. The band is red for DISAGREEMENT, not for "live" — a page quietly
+   trusting its own cached config is how someone gets told "demo" while real money moves.
+   A fourth sits in front of them: which account this page is SHOWING. "Viewing" and "armed on"
+   are different words with different venues next to them, so looking at the live account can
+   never read as trading it, and the reverse. #}
+<div class="band {{ 'bad' if venue.agreement == 'disagree' else '' }}">
+  {% if viewing is defined %}
+    Viewing <strong class="vt {{ viewing }}">{{ viewing | upper }}</strong> ·
+  {% endif %}
+  {% if venue.last_run %}
+    {% if venue.armed %}armed on{% else %}not armed — last run on{% endif %}
+    <strong>{{ (venue.venue or "venue unknown") | upper }}</strong> ·
+    {{ venue.last_run.mode }} · last manager run {{ venue.last_run.started_at | ago }}
+    {% if viewing is defined and venue.armed and venue.venue and venue.venue != viewing %}
+      — <strong>this is not the account the system is trading</strong>
+    {% endif %}
+    {% if venue.agreement == "disagree" %}
+      — <strong>DISAGREEMENT:</strong> this page's config says
+      {{ venue.config_venue }}/{{ venue.config_mode }}. Config is read once at process start and
+      argus-ui restarts only on deploy. <strong>Trust the run, not this page.</strong>
+    {% elif venue.agreement == "unattributed" %}
+      — venue not recorded on that run; this page's config says
+      {{ venue.config_venue }}/{{ venue.config_mode }}
+    {% endif %}
+  {% else %}
+    no manager run journalled — venue unknown
+  {% endif %}
+  {% if venue.halt_present %}
+    · <strong class="bad">HALT present</strong>
+  {% elif venue.armed %}
+    · armed: the next run places orders without asking — stop it with
+    <code>touch {{ venue.halt_path }}</code>
+  {% endif %}
+</div>
+{% endif %}
+{% if unprotected %}
+{# Across both accounts, never scoped by the switch: a position without an exchange-side stop
+   (non-negotiable #4) must not be hidden by which account the browser last chose to look at. #}
+<div class="band bad">
+  <strong>NO STOP:</strong>
+  {% for p in unprotected %}{{ p.symbol }} on
+    <strong class="vt {{ p.venue }}">{{ p.venue | upper }}</strong> (seen {{ p.created_at | ago }}){{ "," if not loop.last else "" }}
+  {% endfor %}
+  — the watchdog's last look found no exchange-side stop on
+  {{ "this position" if unprotected | length == 1 else "these positions" }}.
+</div>
+{% endif %}
+{% if staleness is defined and staleness.stale %}
+{# A dashboard that reports a stale number calmly is worse than no dashboard: it converts silence
+   into reassurance. F-141 cost 6.7 days exactly this way, so this band is red and says what to do. #}
+<div class="band bad">
+  <strong>NOT RUNNING:</strong> {{ staleness.detail }}. Nothing has proposed a trade since then, so
+  no refusal below means "nothing was asked", not "nothing qualified". Check
+  <code>systemctl is-enabled argus-manager.timer</code> on the VPS.
+</div>
+{% endif %}
+<main>{% block body %}{% endblock %}</main>
+</body>
+</html>

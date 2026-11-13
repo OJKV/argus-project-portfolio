@@ -1,0 +1,8 @@
+[Unit]
+Description=ARGUS manager timer
+[Timer]
+OnCalendar=*-*-* 00,04,09,12,16,20:30:00 UTC
+Persistent=true
+RandomizedDelaySec=30
+[Install]
+WantedBy=timers.target

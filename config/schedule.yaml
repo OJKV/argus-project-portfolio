@@ -1,0 +1,11 @@
+# UTC. ARCHITECTURE.md §12.
+# Documentation only: nothing reads this file. The systemd timers in deploy/systemd/ are the truth,
+# and tests/deploy/test_schedule_doc.py fails when this file and they disagree.
+review: ["00:00", "06:00", "12:00", "18:00"]
+manager: ["00:30", "04:30", "09:30", "12:30", "16:30", "20:30"]  # both venues when armed
+watchdog: "*/20"
+reflect: "Sun 09:30"
+eval_models: "08:30"   # DAILY, after both free-tier quota resets (see argus-eval-models.timer)
+backup: "03:30"
+autodeploy: "every 5 min"   # disabled by default in the portfolio copy
+run_budget_seconds: 480

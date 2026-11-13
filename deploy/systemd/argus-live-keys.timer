@@ -1,0 +1,20 @@
+[Unit]
+Description=ARGUS live key keepalive timer
+
+[Timer]
+# Belt and braces, not a requirement. OKX's API FAQ (checked 2026-09-24) deletes keys after 14
+# days of inactivity ONLY when they are not bound to an IP — ours are bound, so the rule does not
+# reach them. It also states a key is not inactive if it is used to "call private or
+# account-related interfaces ... such as viewing account balance", which is precisely what
+# `doctor --live-keys` does. Weekly costs four authenticated reads a month and removes a standing
+# worry; without it, a live key can go untouched for weeks while the system trades demo.
+#
+# 06:10-06:15, not 06:00: at :00 it queued behind the review and the watchdog's tick, and its
+# `flock -w 300` could time out into a false failure alert. This window sits between those and the
+# :20 watchdog tick (review 2026-10-07, second pass).
+OnCalendar=Mon *-*-* 06:10:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=ARGUS backup timer
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+RandomizedDelaySec=30
+[Install]
+WantedBy=timers.target

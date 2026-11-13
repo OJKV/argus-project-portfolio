@@ -1,0 +1,7 @@
+# Revenue-to-token mechanics for the Fundamental factor; verified monthly by doctor.
+assets:
+  ARB:  {token_revenue_share: 0.0,  note: "DAO takes 10% of net sequencer revenue; none to holders", github: "OffchainLabs/nitro"}
+  HYPE: {token_revenue_share: 0.97, note: "assistance-fund buybacks ~97% of fees", github: null}
+  LINK: {token_revenue_share: 0.0,  note: "staking rewards; no fee share", github: "smartcontractkit/chainlink"}
+slug_changes:
+  - {symbol: TON, coingecko_old: the-open-network, coingecko_new: gram, seen: 2026-09-11, note: "trap #11"}

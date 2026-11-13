@@ -1,0 +1,16 @@
+[Unit]
+Description=ARGUS model eval timer
+
+[Timer]
+# 08:30 UTC. Two reset clocks were measured, and neither is UTC midnight in practice:
+#  - Gemini's daily quota resets at midnight PACIFIC (07:00-08:00 UTC), so a 00:30 UTC run saw
+#    the 20-RPD flash models still exhausted from the previous day.
+#  - Cloudflare documents 00:00 UTC but has a known fault where the allocation stays blocked
+#    after the reset; at 00:31 UTC every Cloudflare model still returned 429.
+# 08:30 UTC is past both, so the eval measures models rather than yesterday's spending.
+OnCalendar=*-*-* 08:30:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

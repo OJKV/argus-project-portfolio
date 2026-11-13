@@ -1,0 +1,13 @@
+[Unit]
+Description=ARGUS auto-deploy timer
+
+[Timer]
+# A tick with nothing new costs one `git fetch` and exits (no uv, no tests, no run lock), so five
+# minutes is cheap. OnUnitActiveSec counts from the last start, so a long staging run is not
+# followed by a tick that overlaps it (and autodeploy.lock refuses one anyway).
+# Pause without root: touch /var/lib/argus/autodeploy.paused.
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

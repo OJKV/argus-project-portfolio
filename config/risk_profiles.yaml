@@ -1,0 +1,45 @@
+# Risk profiles. Selected automatically by equity unless RISK_PROFILE is set (DECISION_LOGIC.md §5, §5.1).
+# Numbers may only change with backtest/replay/calibration evidence.
+#
+# Validated at load by argus/gate/risk_config.py (review G-N5 / G-17): unknown keys are refused, and
+# every key here is either READ by the code or PINNED to the constant the gate enforces — a pinned
+# value that differs from its constant stops the run, because editing it here would change nothing.
+# Changing a pinned number is a code change, through the grilling gate.
+#
+# These are the LIVE numbers. The demo account runs the exploration profile in argus/gate/limits.py
+# (DEMO_EXPLORATION, DECISION_LOGIC §11): lower score/R:R bars, more entries and positions, CHOP
+# market entries, a 5-loss pause. It is code, not a section here, so reverting demo to these numbers
+# is one line (`DEMO_PROFILE = LIVE_CONSERVATIVE`) with nothing in this file to keep in step.
+common:
+  max_leverage: 10                # ceiling: no small-account step may allow more (read)
+  liq_buffer_multiple: 2.5        # pinned: liquidation distance >= 2.5 x stop distance
+  stop_atr_band: [1.0, 3.5]       # pinned: stop distance in ATR14 multiples
+  min_rr_tp1: 1.5                 # pinned
+  min_rr_blended: 2.0             # pinned
+  entry_valid_hours: 12           # read: resting-entry sweep
+  entry_drift_cancel_pct: 2.0     # read: resting-entry sweep
+  fee_viability_max_ratio: 0.20   # pinned: round-trip fees + funding <= 20% of expected TP1 profit
+  funding_cost_max_ratio: 0.25    # pinned
+  event_blackout_hours: 6         # pinned
+  max_entries_per_run: 2          # pinned
+  max_entries_per_day: 3          # pinned
+  time_stop_hours_max: 168        # pinned
+  daily_loss_halt_pct: 3.0        # pinned
+  weekly_loss_halt_pct: 6.0       # pinned
+  portfolio_dd_kill_pct: 15.0     # pinned
+  consecutive_loss_pause: 3       # pinned
+conservative:                      # default when equity >= $500
+  max_positions: 4                # read: gate 6
+  small_account_steps: [0, 1, 2]  # read
+aggressive:                        # default when equity < $500 (N3). Step 3 = 5% risk allowed.
+  max_positions: 2                # read: gate 6 — "<= 2 positions under $500 never relaxes" (§5.1)
+  small_account_steps: [0, 1, 2, 3]
+small_account_steps:               # read. Escalate only when notional < min_notional x 1.2
+  0: {risk_pct: 1.0, max_lev: 10, min_lev: 2, max_notional_frac: 0.25}
+  1: {risk_pct: 2.0, max_lev: 10, min_lev: 2, max_notional_frac: 0.40}
+  2: {risk_pct: 3.5, max_lev: 10, min_lev: 2, max_notional_frac: 0.50}
+  3: {risk_pct: 5.0, max_lev: 10, min_lev: 5, max_notional_frac: 0.60}
+min_viable_notional_usd: 25      # pinned: escalate small-account steps below this notional [tune]
+small_account_equity_usd: 500    # read: profile selection
+small_account_exit_days: 7       # read: profile selection
+regime_multipliers: {TREND_UP: 1.0, TREND_DOWN: 1.0, CHOP: 0.5, EVENT_RISK: 0.4}  # pinned

@@ -1,0 +1,38 @@
+[Unit]
+Description=ARGUS read-only dashboard
+After=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=argus
+# Hardening (P-5): only directives that cannot break this service. Not ProtectHome (the venv's
+# Python is uv's, under /home/argus), not MemoryDenyWriteExecute (numba JITs), and no capability
+# keys (the root-owned installer refuses them; a non-root user with NoNewPrivileges has none).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+UMask=0027
+# logfire reads pyproject.toml from the CWD at import time, so starting anywhere the `argus` user
+# cannot read dies with PermissionError before main() runs (F-124).
+WorkingDirectory=/opt/argus-project
+# No EnvironmentFile (P-5): argus reads .env itself through Settings, from
+# WorkingDirectory; exporting it put every secret into this process's environment.
+# 127.0.0.1 only, always. Nothing authenticates the journal behind this page, so the bind address
+# is the whole access control. Reaching it from owner's devices is `tailscale serve`'s job (set up by
+# install-units.sh): it terminates TLS, applies the tailnet's device authentication, and needs
+# nothing from this process — unlike asking `tailscale ip` here, which failed silently as the
+# argus user and left the service healthy but unreachable (F-134).
+ExecStart=/opt/argus-project/.venv/bin/argus ui --port 8787 --host 127.0.0.1
+
+Restart=on-failure
+RestartSec=5
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

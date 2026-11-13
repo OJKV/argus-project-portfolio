@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}ARGUS · trading{% endblock %}
+{% block subtitle %}every refusal, with the rule that caused it{% endblock %}
+{% block body %}
+{# Every panel tagged with it is scoped to the account in the header switch. #}
+{% set vtag %}<span class="vt {{ viewing }}">{{ viewing | upper }}</span>{% endset %}
+
+{% if not orders and not open_positions and not postmortems %}
+<section>
+  <div class="panel"><div class="empty">
+    {# An account with nothing on it is a state, not an error — and the page says which kind of
+       nothing: never run against, or run against and never placed. #}
+    <strong>The {{ viewing }} account has not traded yet.</strong><br>
+    {% set ran = cadence.values() | sum(attribute="count") %}
+    {% if ran %}{{ ran }} run{{ "s" if ran != 1 else "" }} journalled against it; none has placed
+      an order, and no position has been seen on it.
+    {% else %}Nothing has run against it yet, so every panel below is empty because there is
+      nothing to show — not because the page cannot see.{% endif %}
+  </div></div>
+</section>
+{% endif %}
+
+<section class="cards">
+  <div class="card"><div class="k">Kill switch</div>
+    <div class="n" style="font-size:17px">
+      {% if venue.halt_present %}<span class="bad">HALT</span>{% else %}<span class="ok">clear</span>{% endif %}
+    </div>
+    {% if kill_switch %}
+    {# Not scoped by the switch: the drawdown the watchdog itself computes, from its own function
+       and its own account's peak, is the one that writes HALT and flattens — whichever account
+       is being viewed. #}
+    <div class="dim">acts on {{ kill_switch.venue | upper }}:
+      <span class="{{ 'bad' if kill_switch.tripped else '' }}">{{ kill_switch.drawdown_pct }}%</span>
+      drawdown · halts at {{ kill_switch.halt_pct }}%</div>
+    {% endif %}
+    <div class="dim mono" style="font-size:10.5px">{{ venue.halt_path }}</div></div>
+
+  <div class="card"><div class="k">Equity</div>
+    {% if equity.latest is not none %}
+      <div class="n">${{ "{:,.2f}".format(equity.latest) }}</div>
+      {# The age is as important as the number: a stale equity reading looks identical to a fresh
+         one, and every drawdown figure below is computed from it. #}
+      <div class="dim">{{ equity.as_of | ago }} · {{ equity.venue or "venue unattributed" }}</div>
+    {% else %}
+      <div class="n" style="font-size:17px">—</div><div class="dim">no snapshot yet</div>
+    {% endif %}</div>
+
+  <div class="card"><div class="k">Drawdown (30d)</div>
+    {% if equity.drawdown_pct is not none %}
+      {# This account's own peak. The halt threshold sits on the kill switch card, beside the
+         number it is actually compared with. #}
+      <div class="n">{{ equity.drawdown_pct }}%</div><div class="dim">from {{ viewing }}'s own peak</div>
+    {% else %}
+      <div class="n" style="font-size:17px">—</div>
+      <div class="dim">one measurement — a drawdown needs two</div>
+    {% endif %}</div>
+
+  <div class="card"><div class="k">Last manager run</div>
+    <div class="n" style="font-size:17px">{{ cadence.manager.last | ago if cadence.manager and cadence.manager.last else "never" }}</div>
+    <div class="dim">{{ cadence.manager.count if cadence.manager else 0 }} runs on this account</div></div>
+
+  <div class="card"><div class="k">Last watchdog</div>
+    <div class="n" style="font-size:17px">{{ cadence.watchdog.last | ago if cadence.watchdog and cadence.watchdog.last else "never" }}</div>
+    {% if cadence.watchdog and cadence.watchdog.attempted != cadence.watchdog.last %}
+      <div class="dim">last attempt {{ cadence.watchdog.attempted | ago }} · {{ cadence.watchdog.attempt_status }}</div>
+    {% else %}
+      <div class="dim">every 20 min · stops are its job</div>
+    {% endif %}</div>
+
+  <div class="card"><div class="k">Orders placed</div>
+    <div class="n">{{ orders | length }}</div>
+    <div class="dim">on {{ viewing }}</div></div>
+</section>
+
+{% set hidden = {"runs": "runs", "decisions": "decisions", "orders": "orders",
+                 "equity": "equity readings", "positions": "position snapshots",
+                 "postmortems": "post-mortems"} %}
+{% if unattributed.values() | sum %}
+{# Rows from runs that never recorded their account (F-131). Either view claiming them would be a
+   guess; dropping them without a word would make history vanish. So: counted, and named. #}
+<p class="dim" style="font-size:12px;margin-top:-14px">
+  Shown in neither view:
+  {% for key, label in hidden.items() if unattributed[key] %}{{ unattributed[key] }} {{ label }}{{ " · " if not loop.last else "" }}{% endfor %}
+  — written by runs that did not record their account, so they cannot be attributed to demo or
+  live without guessing.
+</p>
+{% endif %}
+
+<section>
+  <h2>Open positions {{ vtag }}</h2>
+  <div class="panel">
+  {% if open_positions %}
+  <table>
+    <tr><th>Symbol</th><th>Side</th><th>Size</th><th>Entry</th><th>Mark</th><th>Unrealised</th><th>Protection</th><th>Seen</th></tr>
+    {% for p in open_positions %}
+    <tr>
+      <td><strong>{{ p.symbol }}</strong></td><td class="dim">{{ p.side }}</td>
+      <td class="mono">{{ p.size }}</td><td class="mono">{{ p.entry_price }}</td>
+      <td class="mono">{{ p.mark_price }}</td><td class="mono">{{ p.unrealised }}</td>
+      <td>{% if p.unprotected %}<span class="tag bad">NO STOP</span>
+          {% else %}<span class="tag ok">stop attached</span>{% endif %}</td>
+      {# From the last watchdog tick, not a live fetch — a stale row and a fresh one look
+         identical without the age beside them. #}
+      <td class="dim">{{ p.created_at | ago }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty">
+    <strong>Flat.</strong> No open positions as of the last watchdog tick.<br>
+    This now reads the journal rather than guessing: the watchdog writes a snapshot of every
+    position each time it looks, so an empty table here means the venue showed nothing — not that
+    the page cannot see.
+  </div>
+  {% endif %}
+  </div>
+</section>
+
+<section>
+  <h2>Closed trades — what each one taught {{ vtag }}</h2>
+  <div class="panel">
+  {% if postmortems %}
+  <table>
+    <tr><th>Closed</th><th>Symbol</th><th>R</th><th>Process</th><th>Again?</th><th>Entry timing</th><th>Stop</th></tr>
+    {% for p in postmortems %}
+    <tr>
+      <td>{{ p.created_at | ago }}</td><td><strong>{{ p.symbol }}</strong></td>
+      <td class="mono {{ 'ok' if (p.outcome_r or 0) > 0 else 'bad' if (p.outcome_r or 0) < 0 else 'dim' }}">{{ p.outcome_r }}</td>
+      <td>{% if p.process_verdict == "sound" %}<span class="tag ok">sound</span>
+          {% else %}<span class="tag warn">flawed</span>{% endif %}</td>
+      <td class="dim">{{ "yes" if p.would_take_again else "no" }}</td>
+      <td class="dim">{{ p.entry_timing }}</td><td class="dim">{{ p.stop_placement }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No trade has closed yet.</div>{% endif %}
+  </div>
+  <p class="dim" style="font-size:12px">Judged on <em>process</em>, not on the result: a sound plan
+    can lose and a reckless one can win. A verdict that follows the PnL teaches the Reflector
+    superstitions.</p>
+</section>
+
+<section>
+  <h2>Orders {{ vtag }}</h2>
+  <div class="panel">
+  {% if orders %}
+  <table>
+    <tr><th>Placed</th><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Size</th><th>Venue id</th><th>State</th></tr>
+    {% for o in orders %}
+    <tr><td>{{ o.created_at | ago }}</td><td><strong>{{ o.symbol }}</strong></td><td>{{ o.side }}</td>
+      <td class="dim">{{ o.order_type }}</td><td class="mono">{{ o.price or "market" }}</td>
+      <td class="mono">{{ o.size }}</td><td class="mono dim">{{ o.exchange_id or "—" }}</td>
+      <td>{% if o.state == "FILLED" %}<span class="tag ok">filled</span>
+          {% elif o.state in ("REJECTED","CANCELLED","EXPIRED") %}<span class="tag bad">{{ o.state|lower }}</span>
+          {% else %}<span class="tag warn">{{ o.state|lower }}</span>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty"><strong>No orders placed yet.</strong><br>
+    {% if venue.armed and venue.venue == viewing %}Armed against <strong>{{ viewing }}</strong> — a
+      run places when a plan clears every gate in the Risk Gate. Most assets on most days are not trades.
+    {% elif venue.armed and venue.venue %}The system is armed on
+      <strong>{{ venue.venue | upper }}</strong>, not on this account — nothing it places lands here.
+    {% elif venue.armed %}Armed, but the last run did not record which account it trades.
+    {% else %}Not armed: runs research and gate, but place nothing.{% endif %}
+  </div>
+  {% endif %}
+  </div>
+</section>
+
+<section>
+  <h2>Decisions — why each trade did or did not happen {{ vtag }}</h2>
+  <div class="panel">
+  {% if decisions %}
+  <table>
+    <tr><th>When</th><th>Symbol</th><th>Side</th><th>Verdict</th><th>Refused at</th><th>Entry → stop</th><th>Size</th><th>Regime</th><th></th></tr>
+    {% for d in decisions %}
+    <tr>
+      <td>{{ d.created_at | ago }}</td>
+      <td><strong>{{ d.symbol }}</strong>{% if d.shadow %} <span class="tag">shadow</span>{% endif %}</td>
+      <td class="dim">{{ d.side or "—" }}</td>
+      <td>{% if d.verdict in ("APPROVED","ADJUSTED") %}<span class="tag ok">{{ d.verdict|lower }}</span>
+          {% elif d.verdict %}<span class="tag bad">rejected</span>
+          {% else %}<span class="tag">—</span>{% endif %}</td>
+      <td>{% if d.refused_gate %}<code>gate {{ d.refused_gate }} · {{ d.refused_name }}</code><br>
+            <span class="dim">{{ d.refused_detail }}</span>{% else %}<span class="dim">—</span>{% endif %}</td>
+      <td class="mono dim">{% if d.entry_low %}{{ d.entry_low }}–{{ d.entry_high }} → {{ d.stop }}{% else %}—{% endif %}</td>
+      <td class="mono dim">
+        {# Never zeros: a plan refused before sizing has no size, and printing 0 would read as a
+           decision somebody made. #}
+        {% if d.sized %}would have: ${{ "%.2f"|format(d.sized.risk_usd) }} risk ·
+          {{ d.sized.contracts }} @ {{ d.sized.leverage }}x
+        {% else %}<span class="dim">not reached — refused before sizing</span>{% endif %}
+      </td>
+      <td class="dim">{{ d.regime or "—" }}</td>
+      <td><a href="/run/{{ d.run_id }}">run →</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No plans journalled yet.</div>{% endif %}
+  </div>
+</section>
+
+<section>
+  <h2>What refuses most often {{ vtag }}</h2>
+  <div class="panel">
+  {% if histogram %}
+  <table>
+    <tr><th>Gate</th><th>Refusals</th><th>Share</th></tr>
+    {% for h in histogram %}
+    <tr><td><code>{{ h.gate }}</code></td><td class="mono">{{ h.count }}</td>
+      <td><div style="background:var(--accent);height:8px;width:{{ h.pct }}%;border-radius:2px;display:inline-block;min-width:2px"></div>
+        <span class="dim mono"> {{ h.pct }}%</span></td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">Nothing refused yet.</div>{% endif %}
+  </div>
+  <p class="dim" style="font-size:12px">The Risk Gate is code, not prompts. No model output can
+    change a size, a leverage or a stop — these are the rules that ended each trade.</p>
+</section>
+
+<section>
+  <h2>Runs {{ vtag }}</h2>
+  <div class="panel">
+  {% if runs %}
+  <table>
+    <tr><th>Started</th><th>Kind</th><th>Mode</th><th>Status</th><th>Dossiers</th><th>Plans</th><th>Calls</th><th></th></tr>
+    {% for r in runs %}
+    <tr><td>{{ r.started_at | ago }}</td><td>{{ r.kind }}</td>
+      <td>{{ r.mode }}{% if r.shadow %} <span class="tag">shadow</span>{% else %} <span class="tag warn">armed</span>{% endif %}</td>
+      <td><span class="tag {{ 'ok' if r.status in ('OK','ok') else 'warn' }}">{{ r.status }}</span></td>
+      <td class="mono">{{ r.dossiers }}</td><td class="mono">{{ r.plans }}</td><td class="mono">{{ r.calls }}</td>
+      <td><a href="/run/{{ r.run_id }}">inspect →</a></td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<div class="empty">No runs yet.</div>{% endif %}
+  </div>
+</section>
+{% endblock %}

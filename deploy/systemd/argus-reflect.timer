@@ -1,0 +1,14 @@
+[Unit]
+Description=ARGUS weekly reflection timer
+
+[Timer]
+# Sunday 09:30 UTC: after the daily model eval at 08:30 (so a broken provider is already visible
+# in `model_evals` if the reflection then fails), and on the quietest day of the week. Weekly
+# rather than daily on purpose — a lesson needs three supporting trades, and this system opens
+# far fewer than three a day, so a daily reflection would spend calls re-reading the same window.
+OnCalendar=Sun *-*-* 09:30:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,25 @@
+[Unit]
+Description=ARGUS alert: %i failed
+# Started by OnFailure=argus-failure@%n.service on the units that must not fail silently (J-N12).
+# A template: never enabled, and %i is the failed unit's full name.
+[Service]
+Type=oneshot
+User=argus
+# Hardening (P-5): only directives that cannot break this service. Not ProtectHome (the venv's
+# Python is uv's, under /home/argus), not MemoryDenyWriteExecute (numba JITs), and no capability
+# keys (the root-owned installer refuses them; a non-root user with NoNewPrivileges has none).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+UMask=0027
+# argus reads .env itself from here; the Telegram token is never in this unit's environment.
+WorkingDirectory=/opt/argus-project
+ExecStart=/opt/argus-project/.venv/bin/python /opt/argus-project/deploy/unit_failed.py %i
+TimeoutStartSec=60
+Nice=10
